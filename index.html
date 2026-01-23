@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>藥劑科盤點日 - 飲料點單系統</title>
+    <title>藥劑部盤點日 - 飲料點單系統</title>
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -110,6 +110,7 @@
     const App = () => {
         const [staffList, setStaffList] = React.useState([]);
         const [menuData, setMenuData] = React.useState({ storeName: "載入中...", categories: [] });
+        const [toppingsList, setToppingsList] = React.useState([]); // 新增：加料清單
         const [allOrders, setAllOrders] = React.useState([]); 
         const [loading, setLoading] = React.useState(true);
         const [submitting, setSubmitting] = React.useState(false);
@@ -119,11 +120,13 @@
         const [isModalOpen, setIsModalOpen] = React.useState(false);
         const [selectedMonth, setSelectedMonth] = React.useState(getCurrentYearMonth());
         
+        // Form States
         const [selectedItem, setSelectedItem] = React.useState(null);
         const [formSize, setFormSize] = React.useState("L");
         const [formIce, setFormIce] = React.useState("微冰");
         const [formSugar, setFormSugar] = React.useState("微糖(3分)");
         const [formNote, setFormNote] = React.useState("");
+        const [selectedToppings, setSelectedToppings] = React.useState(new Set()); // 新增：已選加料
         const [currentPrice, setCurrentPrice] = React.useState(0);
 
         const fetchData = async () => {
@@ -137,6 +140,7 @@
                 const data = await res.json();
                 setStaffList(["請選擇人員...", ...data.staff]);
                 setMenuData(data.menu);
+                setToppingsList(data.toppings || []); // 載入加料
                 setAllOrders(data.orders);
             } catch (error) {
                 console.error("Fetch Error:", error);
@@ -165,15 +169,36 @@
 
         const totalAmount = filteredOrders.reduce((sum, order) => sum + order.price, 0);
 
+        // 計算價格：基礎價 + 加料總價
         React.useEffect(() => {
             if (selectedItem) {
-                setCurrentPrice(formSize === "L" ? selectedItem.priceL : selectedItem.priceM);
+                let price = formSize === "L" ? selectedItem.priceL : selectedItem.priceM;
+                
+                // 加上加料價格
+                let toppingPrice = 0;
+                selectedToppings.forEach(toppingName => {
+                    const t = toppingsList.find(i => i.name === toppingName);
+                    if (t) toppingPrice += t.price;
+                });
+
+                setCurrentPrice(price + toppingPrice);
             }
-        }, [selectedItem, formSize]);
+        }, [selectedItem, formSize, selectedToppings]);
 
         const showNotification = (msg, type = 'success') => {
             setNotification({ message: msg, type });
             setTimeout(() => setNotification({ message: "", type: "success" }), 3000);
+        };
+
+        // 加料勾選處理
+        const handleToppingToggle = (name) => {
+            const newToppings = new Set(selectedToppings);
+            if (newToppings.has(name)) {
+                newToppings.delete(name);
+            } else {
+                newToppings.add(name);
+            }
+            setSelectedToppings(newToppings);
         };
 
         const handleOpenItem = (item) => {
@@ -185,14 +210,14 @@
             
             setSelectedItem(item);
             
-            // 自動判斷預設尺寸：如果有 L 則預設 L，否則預設 M
-            // 判斷依據：價格不是空字串
+            // 自動判斷預設尺寸
             const hasL = item.priceL !== "" && item.priceL !== null && item.priceL !== undefined;
             setFormSize(hasL ? "L" : "M");
             
             setFormIce("微冰");
             setFormSugar("微糖(3分)");
             setFormNote("");
+            setSelectedToppings(new Set()); // 重置加料
             setIsModalOpen(true);
         };
 
@@ -214,6 +239,11 @@
                 setFormIce(order.ice);
                 setFormSugar(order.sugar);
                 setFormNote(order.note);
+                
+                // 還原加料
+                const savedToppings = order.toppings ? order.toppings.split(', ') : [];
+                setSelectedToppings(new Set(savedToppings));
+                
                 setIsModalOpen(true);
                 showNotification("已複製內容，請確認姓名後送出");
             } else {
@@ -226,15 +256,15 @@
                 showNotification("請先選擇訂購人員姓名！", "error");
                 return;
             }
-            if (GAS_API_URL.includes("貼在這裡")) {
-                showNotification("請先設定 Google Apps Script 網址", "error");
-                return;
-            }
             setSubmitting(true);
+
+            // 將 Set 轉為字串
+            const toppingsString = Array.from(selectedToppings).join(', ');
 
             const newOrder = {
                 name: currentUser,
                 drink: selectedItem.name,
+                toppings: toppingsString, // 送出加料
                 size: formSize,
                 ice: formIce,
                 sugar: formSugar,
@@ -255,7 +285,8 @@
                 const optimisticOrder = { 
                     ...newOrder, 
                     id: Date.now(),
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    dateStr: new Date().toLocaleDateString("zh-TW")
                 };
                 setAllOrders([optimisticOrder, ...allOrders]);
                 setTimeout(fetchData, 1500);
@@ -273,9 +304,6 @@
                  <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
                     <h1 className="text-2xl font-bold mb-4">系統尚未設定</h1>
                     <p className="mb-4">請依照教學文件，將 Google Apps Script 網址填入 HTML 檔案的第 48 行。</p>
-                    <div className="bg-gray-200 p-4 rounded text-sm font-mono break-all">
-                        const GAS_API_URL = "你的_GOOGLE_APPS_SCRIPT_網址_貼在這裡";
-                    </div>
                  </div>
              )
         }
@@ -343,7 +371,6 @@
                                             >
                                                 <div className="w-full">
                                                     <div className="font-bold text-gray-800">{item.name}</div>
-                                                    {/* 【新增】備註顯示區塊 */}
                                                     {item.description && (
                                                         <div className="text-[12px] text-amber-600 font-normal mt-1 leading-tight">{item.description}</div>
                                                     )}
@@ -399,7 +426,11 @@
                                                 <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">{order.size}</span>
                                                 <span className="text-xs text-gray-400">{order.dateStr}</span>
                                             </div>
-                                            <div className="text-gray-700 font-medium">{order.drink}</div>
+                                            <div className="text-gray-700 font-medium">
+                                                {order.drink}
+                                                {/* 顯示加料 */}
+                                                {order.toppings && <span className="text-amber-600 ml-2 text-sm">(+ {order.toppings})</span>}
+                                            </div>
                                             <div className="text-sm text-gray-500">
                                                 {order.sugar} / {order.ice}
                                                 {order.note && <span className="text-orange-500 ml-2">註: {order.note}</span>}
@@ -427,7 +458,6 @@
                             <div className="flex justify-between items-start border-b pb-3 border-gray-100">
                                 <div>
                                     <h3 className="text-xl font-bold text-gray-900">{selectedItem.name}</h3>
-                                    {/* 【新增】Modal 裡面也顯示備註 */}
                                     {selectedItem.description && (
                                         <p className="text-sm text-amber-600 mt-1">{selectedItem.description}</p>
                                     )}
@@ -444,7 +474,6 @@
                                 <div className="flex gap-2">
                                     {['M', 'L']
                                         .filter(size => {
-                                            // 過濾掉沒有價格(沒有該尺寸)的選項
                                             if (size === 'M') return selectedItem.priceM !== "" && selectedItem.priceM !== null;
                                             if (size === 'L') return selectedItem.priceL !== "" && selectedItem.priceL !== null;
                                             return false;
@@ -464,6 +493,31 @@
                                     ))}
                                 </div>
                             </div>
+
+                            {/* 加料區 (Toppings) */}
+                            {toppingsList.length > 0 && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">加料 (複選)</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {toppingsList.map(t => {
+                                            const isSelected = selectedToppings.has(t.name);
+                                            return (
+                                                <button
+                                                    key={t.name}
+                                                    onClick={() => handleToppingToggle(t.name)}
+                                                    className={`py-2 px-1 rounded-lg border text-xs font-medium transition-all ${
+                                                        isSelected
+                                                        ? 'bg-amber-100 text-amber-700 border-amber-500 shadow-sm ring-1 ring-amber-500' 
+                                                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                                    }`}
+                                                >
+                                                    {t.name} (+${t.price})
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">冰塊溫度</label>
@@ -545,4 +599,3 @@
 
 </body>
 </html>
-

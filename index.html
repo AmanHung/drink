@@ -72,7 +72,6 @@
     const SUGAR_OPTIONS = ["正常", "少糖(7分)", "半糖(5分)", "微糖(3分)", "一分糖", "無糖"];
 
     // --- Helpers ---
-    // 將時間戳記轉換為 YYYY-MM 格式
     const getYearMonth = (timestamp) => {
         const date = new Date(timestamp);
         const year = date.getFullYear();
@@ -80,7 +79,6 @@
         return `${year}-${month}`;
     };
 
-    // 取得當前月份 YYYY-MM
     const getCurrentYearMonth = () => {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -110,20 +108,17 @@
     };
 
     const App = () => {
-        // --- Data State ---
         const [staffList, setStaffList] = React.useState([]);
         const [menuData, setMenuData] = React.useState({ storeName: "載入中...", categories: [] });
-        const [allOrders, setAllOrders] = React.useState([]); // 存放所有歷史訂單
+        const [allOrders, setAllOrders] = React.useState([]); 
         const [loading, setLoading] = React.useState(true);
         const [submitting, setSubmitting] = React.useState(false);
         const [notification, setNotification] = React.useState({ message: "", type: "success" });
 
-        // --- UI State ---
         const [currentUser, setCurrentUser] = React.useState("");
         const [isModalOpen, setIsModalOpen] = React.useState(false);
-        const [selectedMonth, setSelectedMonth] = React.useState(getCurrentYearMonth()); // 預設當月
+        const [selectedMonth, setSelectedMonth] = React.useState(getCurrentYearMonth());
         
-        // --- Form State ---
         const [selectedItem, setSelectedItem] = React.useState(null);
         const [formSize, setFormSize] = React.useState("L");
         const [formIce, setFormIce] = React.useState("微冰");
@@ -131,22 +126,18 @@
         const [formNote, setFormNote] = React.useState("");
         const [currentPrice, setCurrentPrice] = React.useState(0);
 
-        // --- Fetch Data ---
         const fetchData = async () => {
             if (GAS_API_URL.includes("貼在這裡")) {
                 setLoading(false);
                 return;
             }
-
             setLoading(true);
             try {
                 const res = await fetch(GAS_API_URL);
                 const data = await res.json();
-                
                 setStaffList(["請選擇人員...", ...data.staff]);
                 setMenuData(data.menu);
-                setAllOrders(data.orders); // 存入所有訂單
-                
+                setAllOrders(data.orders);
             } catch (error) {
                 console.error("Fetch Error:", error);
                 showNotification("資料讀取失敗，請檢查網路或網址", "error");
@@ -159,14 +150,12 @@
             fetchData();
         }, []);
 
-        // --- Derived State: 計算可選月份與目前顯示訂單 ---
         const availableMonths = React.useMemo(() => {
             const months = new Set();
-            months.add(getCurrentYearMonth()); // 確保一定有當月
+            months.add(getCurrentYearMonth());
             allOrders.forEach(order => {
                 months.add(getYearMonth(order.id));
             });
-            // 排序：新的月份在前面
             return Array.from(months).sort().reverse();
         }, [allOrders]);
 
@@ -176,7 +165,6 @@
 
         const totalAmount = filteredOrders.reduce((sum, order) => sum + order.price, 0);
 
-        // --- Helper: Price Calculation ---
         React.useEffect(() => {
             if (selectedItem) {
                 setCurrentPrice(formSize === "L" ? selectedItem.priceL : selectedItem.priceM);
@@ -188,9 +176,7 @@
             setTimeout(() => setNotification({ message: "", type: "success" }), 3000);
         };
 
-        // --- Actions ---
         const handleOpenItem = (item) => {
-            // 切換回當月，避免在查看舊紀錄時誤點
             const currentYM = getCurrentYearMonth();
             if (selectedMonth !== currentYM) {
                 setSelectedMonth(currentYM);
@@ -206,7 +192,6 @@
         };
 
         const handleCopyOrder = (order) => {
-            // 切換回當月
             const currentYM = getCurrentYearMonth();
             if (selectedMonth !== currentYM) {
                 setSelectedMonth(currentYM);
@@ -236,12 +221,10 @@
                 showNotification("請先選擇訂購人員姓名！", "error");
                 return;
             }
-
             if (GAS_API_URL.includes("貼在這裡")) {
                 showNotification("請先設定 Google Apps Script 網址", "error");
                 return;
             }
-
             setSubmitting(true);
 
             const newOrder = {
@@ -264,15 +247,12 @@
                 showNotification("訂購成功！");
                 setIsModalOpen(false);
                 
-                // 樂觀更新 (Optimistic Update)
                 const optimisticOrder = { 
                     ...newOrder, 
                     id: Date.now(),
                     timestamp: new Date().toISOString()
                 };
                 setAllOrders([optimisticOrder, ...allOrders]);
-                
-                // 背景重整確保資料同步
                 setTimeout(fetchData, 1500);
 
             } catch (error) {
@@ -354,10 +334,16 @@
                                             <button 
                                                 key={item.id}
                                                 onClick={() => handleOpenItem(item)}
-                                                className="bg-white p-3 rounded-lg shadow-sm border border-gray-100 hover:border-emerald-500 hover:shadow-md transition-all text-left active:scale-95"
+                                                className="bg-white p-3 rounded-lg shadow-sm border border-gray-100 hover:border-emerald-500 hover:shadow-md transition-all text-left active:scale-95 flex flex-col justify-between"
                                             >
-                                                <div className="font-bold text-gray-800">{item.name}</div>
-                                                <div className="text-gray-500 text-sm mt-1">
+                                                <div className="w-full">
+                                                    <div className="font-bold text-gray-800">{item.name}</div>
+                                                    {/* 【新增】備註顯示區塊 */}
+                                                    {item.description && (
+                                                        <div className="text-[12px] text-amber-600 font-normal mt-1 leading-tight">{item.description}</div>
+                                                    )}
+                                                </div>
+                                                <div className="text-gray-500 text-sm mt-2 font-medium">
                                                     ${item.priceL} (L)
                                                 </div>
                                             </button>
@@ -378,7 +364,6 @@
                                 </button>
                             </h2>
                             
-                            {/* 月份選擇器 */}
                             <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-2 py-1">
                                 <Icons.Calendar size={16} className="text-gray-500" />
                                 <select 
@@ -431,21 +416,23 @@
                     </section>
                 </main>
 
-                {/* The Modal */}
                 <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
                     {selectedItem && (
                         <div className="space-y-4">
                             <div className="flex justify-between items-start border-b pb-3 border-gray-100">
                                 <div>
                                     <h3 className="text-xl font-bold text-gray-900">{selectedItem.name}</h3>
-                                    <p className="text-emerald-600 font-medium">${currentPrice}</p>
+                                    {/* 【新增】Modal 裡面也顯示備註 */}
+                                    {selectedItem.description && (
+                                        <p className="text-sm text-amber-600 mt-1">{selectedItem.description}</p>
+                                    )}
+                                    <p className="text-emerald-600 font-medium mt-1">${currentPrice}</p>
                                 </div>
                                 <button onClick={() => setIsModalOpen(false)} className="p-1 rounded-full hover:bg-gray-100">
                                     <Icons.X size={24} className="text-gray-400" />
                                 </button>
                             </div>
 
-                            {/* Size Selection */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">容量 (Size)</label>
                                 <div className="flex gap-2">
@@ -465,7 +452,6 @@
                                 </div>
                             </div>
 
-                            {/* Ice Selection */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">冰塊溫度</label>
                                 <div className="grid grid-cols-3 gap-2">
@@ -485,7 +471,6 @@
                                 </div>
                             </div>
 
-                            {/* Sugar Selection */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">甜度</label>
                                 <div className="grid grid-cols-3 gap-2">
@@ -505,7 +490,6 @@
                                 </div>
                             </div>
 
-                            {/* Note */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">備註</label>
                                 <input 
@@ -517,7 +501,6 @@
                                 />
                             </div>
 
-                            {/* Action Button */}
                             <button 
                                 onClick={handleSubmit}
                                 disabled={submitting}
@@ -542,7 +525,6 @@
         );
     };
 
-    // Render
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
 
@@ -550,4 +532,3 @@
 
 </body>
 </html>
-

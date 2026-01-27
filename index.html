@@ -381,7 +381,7 @@
                         </select>
                     </section>
 
-                    {/* Menu Section */}
+                   {/* Menu Section */}
                     <section>
                         <h2 className="text-lg font-bold text-gray-800 mb-3">選飲料</h2>
                         <div className="space-y-4">
@@ -407,7 +407,8 @@
                                                     )}
                                                 </div>
                                                 <div className="text-gray-500 text-sm mt-2 font-medium">
-                                                    ${item.priceL} (L)
+                                                    {/* 自動判斷顯示 L 或 M 的價格 */}
+                                                    {item.priceL ? `$${item.priceL} (L)` : `$${item.priceM} (M)`}
                                                 </div>
                                             </button>
                                         ))}
@@ -634,3 +635,4 @@
 
 </body>
 </html>
+
